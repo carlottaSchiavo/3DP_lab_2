@@ -7,7 +7,6 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include "opencv2/features2d/features2d.hpp"
 #include "opencv2/xfeatures2d.hpp"
 #include "opencv2/xfeatures2d/nonfree.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
@@ -51,6 +50,11 @@ void FeatureMatcher::extractFeatures()
     // it into feats_colors_[i] vector
     /////////////////////////////////////////////////////////////////////////////////////////
 
+    /*if (img.empty()) {
+      std::cout << "Could not open the image! Exiting\n" << std::endl;
+      return;
+    }*/
+
     // keypoints detection and descriptor computation using SURF
     int minHessian=400;
     cv::Ptr<cv::xfeatures2d::SURF> detector= cv::xfeatures2d::SURF::create(minHessian);
@@ -59,8 +63,17 @@ void FeatureMatcher::extractFeatures()
     for(int j=0;j<features_[i].size();j++){
       //extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
-
     }
+
+    // Detect keypoints using ORB
+    /*int minHessian = 400;
+    cv::Ptr<cv::Feature2D> detector= cv::ORB::create(minHessian); 
+    detector-> detectAndCompute(img, cv::noArray(), features_[i], descriptors_[i]);
+
+    for(int j = 0; j < features_[i].size(); j++) {
+      // extract the color for each feature
+      feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
+    }*/
     
     /////////////////////////////////////////////////////////////////////////////////////////
   }
@@ -101,8 +114,8 @@ void FeatureMatcher::exhaustiveMatching()
 
       for( size_t k = 0; k < matches.size(); k++ )
       {
-        points_img1.push_back( features_[i][k].pt );
-        points_img2.push_back( features_[j][k].pt );
+        points_img1.push_back( features_[i][matches[k].queryIdx].pt );
+        points_img2.push_back( features_[j][matches[k].trainIdx].pt );
       }
 
 
@@ -120,10 +133,15 @@ void FeatureMatcher::exhaustiveMatching()
           inlier_matches_E.push_back(matches[k]);
         }
 
-        inlier_matches=inlier_matches_E;
+        //inlier_matches=inlier_matches_E;
 
         if(inlier_matches_H.size()>inlier_matches_E.size()){
-          inlier_matches=inlier_matches_H;
+          for (int l = 0; l < inlier_matches_H.size(); l++)
+            inlier_matches.push_back(inlier_matches_H[l]);
+        }
+        else {
+          for (int l = 0; l < inlier_matches_E.size(); l++)
+            inlier_matches.push_back(inlier_matches_E[l]);
         }
 
         if(inlier_matches.size()>5){
