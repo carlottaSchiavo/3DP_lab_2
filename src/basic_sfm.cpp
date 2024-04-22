@@ -520,12 +520,27 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   // IN case of "good" sideward motion, store the transformation into init_r_mat and  init_t_vec; defined above
   /////////////////////////////////////////////////////////////////////////////////////////
 
+  cv::Mat H = findHomography(points0, points1, inlier_mask_H, cv::RANSAC, 0.001);
+  cv::Mat E = cv::findEssentialMat(points0, points1, intrinsics_matrix, cv::RANSAC, 0.999, 1.0, inlier_mask_E);
   
-  
-  
-  
-  
-  
+  if (!(cv::sum(inlier_mask_E)[0] > cv::sum(inlier_mask_H)[0])) {
+    return false;
+  }
+
+  cv::Mat rotation, translation;
+  cv::recoverPose(E, points0, points1, intrinsics_matrix, rotation, translation, inlier_mask_E);
+
+  cv::Mat rotation_vector;
+  //cv::Rodrigues(rotation, rotation_vector);
+
+  //if (rotation_vector.at<uchar>(2) < rotation_vector.at<uchar>(0) || rotation_vector.at<uchar>(2) < rotation_vector.at<uchar>(1)) {
+  if (cv::abs(translation.at<double>(0)) > cv::abs(translation.at<double>(2)) && cv::abs(translation.at<double>(1)) > cv::abs(translation.at<double>(2))) {
+    std::cout << translation.at<double>(0) << std::endl;
+    std::cout << translation.at<double>(2) << std::endl;
+    std::cout << "Sideword motion" << std::endl;
+    rotation.copyTo(init_r_mat);
+    translation.copyTo(init_t_vec);
+  }
 
   /////////////////////////////////////////////////////////////////////////////////////////
 
