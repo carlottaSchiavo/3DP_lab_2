@@ -1,5 +1,4 @@
 #include "features_matcher.h"
-
 #include <iostream>
 #include <map>
 
@@ -56,9 +55,12 @@ void FeatureMatcher::extractFeatures()
     }*/
 
     // keypoints detection and descriptor computation using SURF
-    int minHessian=400;
+    int minHessian=1250;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
+    //converition of the image into grayscale
+    cv::Mat imgDest;
+    cv::cvtColor(img,imgDest,cv::COLOR_BGR2GRAY);
     cv::Ptr<cv::xfeatures2d::SURF> detector= cv::xfeatures2d::SURF::create(minHessian);
-    detector-> detectAndCompute(img,cv::noArray(),features_[i],descriptors_[i]);
+    detector-> detectAndCompute(imgDest,cv::noArray(),features_[i],descriptors_[i]);
 
     for(int j=0;j<features_[i].size();j++){
       //extract the color for each feature
@@ -77,6 +79,7 @@ void FeatureMatcher::extractFeatures()
     
     /////////////////////////////////////////////////////////////////////////////////////////
   }
+  
 }
 
 void FeatureMatcher::exhaustiveMatching()
@@ -105,9 +108,17 @@ void FeatureMatcher::exhaustiveMatching()
       /////////////////////////////////////////////////////////////////////////////////////////
 
       
-      cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_HAMMING, false);
+      cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_L2, false);
       matcher->match(descriptors_[i],descriptors_[j],matches);
 
+      //DRAW MATCHES
+      cv::Mat img_matches;
+      cv::Mat img1 = readUndistortedImage(images_names_[i]);
+      cv::Mat img2 = readUndistortedImage(images_names_[j]);
+      drawMatches( img1, features_[i], img2, features_[j], matches, img_matches );
+      //-- Show detected matches
+      imshow("Matches", img_matches );
+      cv::waitKey();
       //computation of H and E models
       std::vector<cv::Point2f> points_img1;
       std::vector<cv::Point2f> points_img2;

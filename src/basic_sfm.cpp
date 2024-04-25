@@ -443,6 +443,7 @@ void BasicSfM::solve()
   int seed_pair_idx0, seed_pair_idx1;
 
   // Look for a suitable seed pair....
+  //here the pair with the highest number of correspondences is selected
   while( true )
   {
     int max_corr = -1;
@@ -477,15 +478,15 @@ void BasicSfM::solve()
     }
   }
 }
-
+//Any time we start with a new seed pair, we need to reset everything...
 bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1 )
 {
   // Reset all parameters: we are starting a brand new reconstruction from a new seed pair
   memset(parameters_.data(), 0, num_parameters_*sizeof(double));
   // Masks used to indicate which cameras and points have been optimized so far
-  cam_pose_optim_iter_.resize(num_cam_poses_, 0 );
-  pts_optim_iter_.resize( num_points_, 0 );
-
+  cam_pose_optim_iter_.resize(num_cam_poses_, 0 ); //number of elements = number of cameras
+  pts_optim_iter_.resize( num_points_, 0 ); //number of elements = number of 3D points
+ 
 
   // Init R,t between the seed pair
   cv::Mat init_r_mat, init_r_vec, init_t_vec;
@@ -498,13 +499,14 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   {
     if (cam_observation_[seed_pair_idx1].find(co_iter.first) != cam_observation_[seed_pair_idx1].end())
     {
-      points0.emplace_back(observations_[2*co_iter.second],observations_[2*co_iter.second + 1]);
+      //populate such vectors that contains the projection of the same 3D point in the images plane 
+      points0.emplace_back(observations_[2*co_iter.second],observations_[2*co_iter.second + 1]); //2D points
       points1.emplace_back(observations_[2*cam_observation_[seed_pair_idx1][co_iter.first]],
-                           observations_[2*cam_observation_[seed_pair_idx1][co_iter.first] + 1]);
+                           observations_[2*cam_observation_[seed_pair_idx1][co_iter.first] + 1]);//2D points
     }
   }
 
-  // Canonical camera so identity K
+  // Canonical camera so identity K 
   cv::Mat_<double> intrinsics_matrix = cv::Mat_<double>::eye(3,3);
 
   //////////////////////////// Code to be completed (3/7) /////////////////////////////////
@@ -520,7 +522,20 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   // IN case of "good" sideward motion, store the transformation into init_r_mat and  init_t_vec; defined above
   /////////////////////////////////////////////////////////////////////////////////////////
 
-  
+  /*
+   * NOTES: 
+   - Use a different threshold (0.001) --> before we use pixels now we are in the continuos domain
+   - Best model must be H --> otherwise return false --> restart from a brand new seed pair (function above)
+   - If H is the best model: 
+     1. recover the rigid body transfomation 
+     2. If :(forward motion = z > (x or y))--> DISCARD seed pair
+        Else: 
+          --> store the rigid body transfomation estimated with recoverPose() inside "init_r_mat and init_t_vec" (Roudrigues function must be useful). 
+          
+
+    At this point we have accepted till now seed pair --> entry in the cam_pose_optim_iter_ should be such pair images. 
+    
+  */
   
   
   
@@ -528,6 +543,8 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   
 
   /////////////////////////////////////////////////////////////////////////////////////////
+
+  //It's time to triangulate these points --> get 3D points coordinate of the points that generate the observations.
 
   int ref_cam_pose_idx = seed_pair_idx0, new_cam_pose_idx = seed_pair_idx1;
 
@@ -563,7 +580,21 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   init_r_mat.copyTo(proj_mat1(cv::Rect(0, 0, 3, 3)));
   init_t_vec.copyTo(proj_mat1(cv::Rect(3, 0, 1, 3)));
 
+  /*
+  * Given 2 projection matrices that are 3x4 matrices that perfome projective geometry in the homogeneous domain.
+  * (3 columns of the rotMat and 1 column of the traslation)
+  * - First camera --> identity 
+  * - Seconda camera --> init r and init t
+  * then:
+  * - 2 vector of projected points in the 2 images
+  * - result is salved in hpoints4D
+  */
   cv::triangulatePoints(	proj_mat0, proj_mat1, points0, points1, hpoints4D );
+
+  /*
+  Now we have to copy the rigid body trasformation we have found before and the 3D points position, inside the HUGE 
+  vector of parameters 
+  */
 
   int r = 0;
   // Initialize the first optimized points
@@ -576,14 +607,20 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
       if( inlier_mask_E.at<unsigned char>(r) )
       {
         // Initialize the new point into the optimization
+        /*
+          This allow to have a pointer to the correct position of parameters_ structure corresponding the point with index pt_idx
+        */
         double *pt = pointBlockPtr(pt_idx);
 
+        /*
+        we copy all the 3D points cooredinated we have estimated into the parameters_ vector in the corresponging position
+        */
         // H-normalize the point
         pt[0] = hpoints4D.at<double>(0,r)/hpoints4D.at<double>(3,r);
         pt[1] = hpoints4D.at<double>(1,r)/hpoints4D.at<double>(3,r);
         pt[2] = hpoints4D.at<double>(2,r)/hpoints4D.at<double>(3,r);
 
-        // Check the cheirality constraint
+        // Check the cheirality constraint --> ensure that the point is in front of the camera.
         if(pt[2] > 0.0 )
         {
           // Try to reproject the estimated 3D point in both cameras
@@ -652,15 +689,21 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     // Extract the 3D points that are projected in the new_cam_pose_idx-th pose and that are already registered
     std::vector<cv::Point3d> scene_pts;
     std::vector<cv::Point2d> img_pts;
-    for( int i_p = 0; i_p < num_points_; i_p++ )
+    for( int i_p = 0; i_p < num_points_; i_p++ )//num_points_= number of observed 3D points
     {
       if (pts_optim_iter_[i_p] > 0 &&
           cam_observation_[new_cam_pose_idx].find(i_p) != cam_observation_[new_cam_pose_idx].end())
       {
-        double *pt = pointBlockPtr(i_p);
-        scene_pts.emplace_back(pt[0], pt[1], pt[2]);
+        double *pt = pointBlockPtr(i_p); //puntatore al punto di indice i_p che ha generato l'observation (punto giallo)
+        scene_pts.emplace_back(pt[0], pt[1], pt[2]); //coordinate punti gialli (che hanno generato i punti rossi)
+        /*
+          data la camera new_cam_pose_idx, vogliamo ottenere le coordinate dell'observation del punto i_p.
+          observations_ contiene x e y per ogni observation, quindi ad esempio per accedere alla coppia (x3,y3)
+          che si trova a indice 6 e 7, moltiplico per 2 (per la x3).
+          cam_observation_[new_cam_pose_idx][i_p] ci restituisce 3, che è l'indice dell'observation
+        */
         img_pts.emplace_back(observations_[cam_observation_[new_cam_pose_idx][i_p] * 2],
-                             observations_[cam_observation_[new_cam_pose_idx][i_p] * 2 + 1]);
+                             observations_[cam_observation_[new_cam_pose_idx][i_p] * 2 + 1]); //coordinate punti rossi
       }
     }
     if( scene_pts.size() <= 3 )
@@ -684,9 +727,13 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     {
       if( cam_pose_optim_iter_[cam_idx] > 0 )
       {
+        /*
+        Nel seguente ciclo, andiamo a iterare la mappa relativa alla camera cam_idx. Questa mappa
+        contiene coppie di (indice punto, indice observation)
+        */
         for( auto const& co_iter : cam_observation_[cam_idx] )
         {
-          auto &pt_idx = co_iter.first;
+          auto &pt_idx = co_iter.first; 
           if( pts_optim_iter_[pt_idx] == 0 &&
               cam_observation_[new_cam_pose_idx].find(pt_idx ) != cam_observation_[new_cam_pose_idx].end() )
           {
@@ -712,10 +759,58 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
             // pt[2] = /*X coordinate of the estimated point */;
             /////////////////////////////////////////////////////////////////////////////////////////
 
-                
-                
+            points0.emplace_back(observations_[2*co_iter.second],observations_[2*co_iter.second + 1]);
+            points1.emplace_back(observations_[2*cam_observation_[new_cam_pose_idx][co_iter.first]],
+                           observations_[2*cam_observation_[new_cam_pose_idx][co_iter.first] + 1]);
 
+            double *pt = pointBlockPtr(pt_idx);
+
+            //Let's create the 3x4 projection Matrices for the 2 cameras
+            cv::Mat_<double> proj_mat_cam0 = cv::Mat_<double>::zeros(3, 4), proj_mat_cam1(3, 4), new_hpoints4D;
+            
+            cv::Mat_<double>r_mat0(3,3),r_mat1(3,3);//rotation matrices for the two cameras
+            
+            //Let's take from  parameters_ the axis-angle representation and the traslation vector for the 2 cameras
+            vector<double> r_vec_cam0={cam0_data[0],cam0_data[1],cam0_data[2]},
+              r_vec_cam1{cam1_data[0],cam1_data[1],cam1_data[2]};
+
+            cv::Mat_<double> t_vec_cam0{cam0_data[3],cam0_data[4],cam0_data[5]},
+                  t_vec_cam1{cam1_data[3],cam1_data[4],cam1_data[5]};
+
+            //from axis-angle to matrices
+            cv::Rodrigues(r_vec_cam0,r_mat0);
+            cv::Rodrigues(r_vec_cam1,r_mat1);
+
+            // First camera pose 
+            r_mat0.copyTo(proj_mat_cam0(cv::Rect(0, 0, 3, 3)));
+            t_vec_cam0.copyTo(proj_mat_cam0(cv::Rect(3, 0, 1, 3)));
+            // Second camera pose 
+            r_mat1.copyTo(proj_mat_cam1(cv::Rect(0, 0, 3, 3)));
+            t_vec_cam1.copyTo(proj_mat_cam1(cv::Rect(3, 0, 1, 3)));
+
+            //triangulate Points 
+            cv::triangulatePoints(proj_mat_cam0, proj_mat_cam1, points0, points1, new_hpoints4D);
+
+            //check the cheirality constraint  
+            if(new_hpoints4D.at<double>(2,r)/hpoints4D.at<double>(3,r)>0.0){
+              n_new_pts++;
+              pts_optim_iter_[pt_idx] = 1;
+              double *pt = pointBlockPtr(pt_idx);
+              pt[0] = new_hpoints4D.at<double>(0,r)/new_hpoints4D.at<double>(3,r);
+              pt[1] = new_hpoints4D.at<double>(1,r)/new_hpoints4D.at<double>(3,r);
+              pt[2] = new_hpoints4D.at<double>(2,r)/new_hpoints4D.at<double>(3,r);
+            }
+
+            points0.clear();
+            points1.clear();
                 
+            // trasformare utilizzando l'inversa di rodrigues l'axis-angle representation nella relativa matrice di rotazione
+            // creare la matrice 3x4 projection
+            // cv::triangulatePoints(proj_mat0, proj_mat1, points0, points1, hpoints4D);
+            // check the cheirality constraint  
+            // svuotare i vettori ??
+            //points0.clear();
+            //points1.clear(); oppure erase?
                 
             /////////////////////////////////////////////////////////////////////////////////////////
 
@@ -732,7 +827,7 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     cout<<endl;
 
     // Execute an iteration of bundle adjustment
-    bundleAdjustmentIter(new_cam_pose_idx );
+    bundleAdjustmentIter(new_cam_pose_idx );/*expliting Ceres Library */
 
     Eigen::Vector3d vol_min = Eigen::Vector3d::Constant((std::numeric_limits<double>::max())),
         vol_max = Eigen::Vector3d::Constant((-std::numeric_limits<double>::max()));
