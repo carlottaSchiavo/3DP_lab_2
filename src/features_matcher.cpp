@@ -14,6 +14,8 @@
 
 
 
+
+
 FeatureMatcher::FeatureMatcher(cv::Mat intrinsics_matrix, cv::Mat dist_coeffs, double focal_scale)
 {
   intrinsics_matrix_ = intrinsics_matrix.clone();
@@ -55,7 +57,7 @@ void FeatureMatcher::extractFeatures()
     }*/
 
     // keypoints detection and descriptor computation using SURF
-    int minHessian=400;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
+    int minHessian=50;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
     //converition of the image into grayscale
     cv::Mat imgDest;
     cv::cvtColor(img,imgDest,cv::COLOR_BGR2GRAY);
@@ -66,7 +68,7 @@ void FeatureMatcher::extractFeatures()
       //extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
     }
-
+//---------------------------------------------------------------------
     // Detect keypoints using ORB
     /*int minHessian = 400;
     cv::Ptr<cv::Feature2D> detector= cv::ORB::create(minHessian); 
@@ -76,6 +78,8 @@ void FeatureMatcher::extractFeatures()
       // extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
     }*/
+
+
     
     /////////////////////////////////////////////////////////////////////////////////////////
   }

@@ -435,6 +435,10 @@ void BasicSfM::printPointParams ( int idx ) const
 
 void BasicSfM::solve()
 {
+  //DEBUG: DA ELIMNARE
+    int count_div=0;
+
+
   // For each camera pose, prepare a map that reports the pairs [point index, observation index]
   // This map is used to quickly retrieve the observation index given a 3D point index
   // For instance, to query if the camera pose with index i_cam observed the
@@ -501,14 +505,18 @@ void BasicSfM::solve()
     }
     already_tested_pair(seed_pair_idx0, seed_pair_idx1) = 1;
 
+    
+
     if (incrementalReconstruction( seed_pair_idx0, seed_pair_idx1 ))
     {
       std::cout<<"Recostruction completed, exiting"<<std::endl;
+      cout<<"conteggio tentativi: "<<count_div<<endl;//DEBUG
       return;
     }
     else
     {
       std::cout<<"Try to look for a better seed pair"<<std::endl;
+      count_div++;//DEBUG
     }
   }
 }
@@ -516,6 +524,9 @@ void BasicSfM::solve()
 bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1 )
 {
   vector<double> prev_parameters;
+  double prev_sum=0;
+  
+
   for (int i = 0; i < parameters_.size(); i++) {
     prev_parameters.push_back(parameters_[i]);
   }
@@ -944,7 +955,9 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     //    return false;
     double threshold = 0.5;
     int count_cam = 0, count_point = 0;
+    double sum=0.0;
 
+    //FIRST METHOD
     for (int k = 0; k < num_cam_poses_*6; k++) {
       if (std::abs(prev_parameters[k] - parameters_[k]) > threshold) {
         count_cam++;
@@ -963,6 +976,41 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
         return false;
     }
 
+
+
+    //SECOND METHOD
+    
+    /*int count_inf=0;
+    for(int i=0;i<parameters_.size();i++){
+      cout << prev_parameters[i] << " " << parameters_[i] << endl;
+      double diff=std::abs(prev_parameters[i] - parameters_[i]);
+      if(std::isnan(diff) || diff==INFINITY){
+        count_inf++;
+      }
+      else{
+        sum+=diff;
+      }
+      cout <<"sum:"<<sum<< endl;
+    }
+     
+    if(prev_sum==0){
+      prev_sum=sum;
+      std::cout<<"prev_sum: "<<prev_sum<<std::endl;
+    }
+    else{
+      std::cout<<"prev_sum: "<<prev_sum<<std::endl;
+      std::cout<<"sum: "<<sum<<std::endl;
+      std::cout<<"num_inf: "<<count_inf<<" size: "<<parameters_.size()<<std::endl;
+      if(count_inf>parameters_.size()*0.1){
+        std::cout << "Divergence. Restarting\n" << std::endl;
+        return false;
+      }
+      if(sum>prev_sum+(prev_sum*0.1)){
+        std::cout << "Divergence. Restarting\n" << std::endl;
+        return false;
+      }
+    }*/
+    prev_sum=sum;
     prev_parameters.clear();
     for (int i = 0; i < parameters_.size(); i++) {
       prev_parameters.push_back(parameters_[i]);
