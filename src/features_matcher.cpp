@@ -51,13 +51,9 @@ void FeatureMatcher::extractFeatures()
     // it into feats_colors_[i] vector
     /////////////////////////////////////////////////////////////////////////////////////////
 
-    /*if (img.empty()) {
-      std::cout << "Could not open the image! Exiting\n" << std::endl;
-      return;
-    }*/
 
     // keypoints detection and descriptor computation using SURF
-    int minHessian=50;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
+    int minHessian=5;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
     //converition of the image into grayscale
     cv::Mat imgDest;
     cv::cvtColor(img,imgDest,cv::COLOR_BGR2GRAY);
@@ -68,17 +64,19 @@ void FeatureMatcher::extractFeatures()
       //extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
     }
-//---------------------------------------------------------------------
-    // Detect keypoints using ORB
-    /*int minHessian = 400;
-    cv::Ptr<cv::Feature2D> detector= cv::ORB::create(minHessian); 
+    //---------------------------------------------------------------------
+    
+    // keypoints detection and descriptor computation using ORB
+
+    /*int numKeypoints = 12000;
+    cv::Ptr<cv::Feature2D> detector= cv::ORB::create(numKeypoints); 
     detector-> detectAndCompute(img, cv::noArray(), features_[i], descriptors_[i]);
 
     for(int j = 0; j < features_[i].size(); j++) {
       // extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
-    }*/
-
+    }
+    */
 
     
     /////////////////////////////////////////////////////////////////////////////////////////
@@ -113,17 +111,18 @@ void FeatureMatcher::exhaustiveMatching()
 
       matches.clear();
       inlier_matches.clear();
+
+      //For SURF:
       cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_L2, false);
+
+      //For ORB:
+      //cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_HAMMING, false);
+
+     
+
       matcher->match(descriptors_[i],descriptors_[j],matches);
 
-      //DRAW MATCHES
-      /*cv::Mat img_matches;
-      cv::Mat img1 = readUndistortedImage(images_names_[i]);
-      cv::Mat img2 = readUndistortedImage(images_names_[j]);*/
-      //drawMatches( img1, features_[i], img2, features_[j], matches, img_matches );
-      //-- Show detected matches
-      //imshow("Matches", img_matches );
-      //cv::waitKey();
+      
       //computation of H and E models
       std::vector<cv::Point2f> points_img1;
       std::vector<cv::Point2f> points_img2;
@@ -148,23 +147,22 @@ void FeatureMatcher::exhaustiveMatching()
         if(isOutlierMask_E.at<uchar>(k,0)==1){
           inlier_matches_E.push_back(matches[k]);
         }
-
-        //inlier_matches=inlier_matches_E;
-
-        if(inlier_matches_H.size()>inlier_matches_E.size()){
-          for (int l = 0; l < inlier_matches_H.size(); l++)
-            inlier_matches.push_back(inlier_matches_H[l]);
-        }
-        else {
-          for (int l = 0; l < inlier_matches_E.size(); l++)
-            inlier_matches.push_back(inlier_matches_E[l]);
-        }
-
-        if(inlier_matches.size()>5){
-          setMatches( i, j, inlier_matches);
-        }
-
       }
+
+      if(inlier_matches_H.size()>inlier_matches_E.size()){
+        for (int l = 0; l < inlier_matches_H.size(); l++)
+          inlier_matches.push_back(inlier_matches_H[l]);
+      }
+      else {
+        for (int l = 0; l < inlier_matches_E.size(); l++)
+          inlier_matches.push_back(inlier_matches_E[l]);
+      }
+
+      if(inlier_matches.size()>5){
+        setMatches( i, j, inlier_matches);
+      }
+
+      
       /////////////////////////////////////////////////////////////////////////////////////////
 
     }
