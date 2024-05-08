@@ -3,14 +3,14 @@
 #include <map>
 
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/core/types.hpp>
-#include <opencv2/highgui/highgui.hpp>
+//#include <opencv2/core/core.hpp>
+//#include <opencv2/core/types.hpp>
+//#include <opencv2/highgui/highgui.hpp>
 #include "opencv2/xfeatures2d.hpp"
 #include "opencv2/xfeatures2d/nonfree.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
-#include <chrono>
-#include <opencv2/features2d.hpp>
+//#include "opencv2/calib3d/calib3d.hpp"
+//#include <chrono>
+//#include <opencv2/features2d.hpp>
 
 
 
@@ -68,7 +68,7 @@ void FeatureMatcher::extractFeatures()
     
     // keypoints detection and descriptor computation using ORB
 
-    /*int numKeypoints = 12000;
+    /*int numKeypoints = 12000; // maximum number of features
     cv::Ptr<cv::Feature2D> detector= cv::ORB::create(numKeypoints); 
     detector-> detectAndCompute(img, cv::noArray(), features_[i], descriptors_[i]);
 
