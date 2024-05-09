@@ -53,9 +53,9 @@ void FeatureMatcher::extractFeatures()
 
 
     // keypoints detection and descriptor computation using SURF
-    int minHessian=5;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
+    //int minHessian=5;//incrementing this parameter, the number of matches decrease and the quality of such matches increase
     //converition of the image into grayscale
-    cv::Mat imgDest;
+    /*cv::Mat imgDest;
     cv::cvtColor(img,imgDest,cv::COLOR_BGR2GRAY);
     
     cv::Ptr<cv::xfeatures2d::SURF> detector= cv::xfeatures2d::SURF::create(minHessian);
@@ -64,12 +64,12 @@ void FeatureMatcher::extractFeatures()
     for(int j=0;j<features_[i].size();j++){
       //extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
-    }
+    }*/
     //---------------------------------------------------------------------
     
     // keypoints detection and descriptor computation using ORB
 
-    /*int numKeypoints = 12000; // maximum number of features
+    int numKeypoints = 12000; // maximum number of features
     cv::Ptr<cv::Feature2D> detector= cv::ORB::create(numKeypoints); 
     detector-> detectAndCompute(img, cv::noArray(), features_[i], descriptors_[i]);
 
@@ -77,7 +77,7 @@ void FeatureMatcher::extractFeatures()
       // extract the color for each feature
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
     }
-    */
+    
 
     
     /////////////////////////////////////////////////////////////////////////////////////////
@@ -114,10 +114,10 @@ void FeatureMatcher::exhaustiveMatching()
       inlier_matches.clear();
 
       //For SURF:
-      cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_L2, false);
+      //cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_L2, false);
 
       //For ORB:
-      //cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_HAMMING, false);
+      cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_HAMMING, false);
 
      
 
