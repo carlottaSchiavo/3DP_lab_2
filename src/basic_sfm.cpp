@@ -522,9 +522,7 @@ void BasicSfM::solve()
 //Any time we start with a new seed pair, we need to reset everything...
 bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1 )
 {
-  vector<double> prev_parameters;
-  double prev_sum=0;
-  
+  vector<double> prev_parameters; //to store the vector of parameters of the previous iteration  
 
   
   // Reset all parameters: we are starting a brand new reconstruction from a new seed pair
@@ -569,26 +567,22 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   // IN case of "good" sideward motion, store the transformation into init_r_mat and  init_t_vec; defined above
   /////////////////////////////////////////////////////////////////////////////////////////
 
+  // Extract Homography matrix and Essential matrix
   cv::Mat H = findHomography(points0, points1, inlier_mask_H, cv::RANSAC, 0.001);
   cv::Mat E = cv::findEssentialMat(points0, points1, intrinsics_matrix, cv::RANSAC, 0.999, 0.001, inlier_mask_E);
   
+  // If the number of inliers for E is higher return false
   if (!(cv::sum(inlier_mask_E)[0] > cv::sum(inlier_mask_H)[0])) { 
     return false;
   }
 
-  cv::Mat rotation, translation;
-  cv::recoverPose(E, points0, points1, intrinsics_matrix, init_r_mat, init_t_vec, inlier_mask_E);
-  //cv::recoverPose(E, points0, points1, intrinsics_matrix, rotation, translation, inlier_mask_E);
+  cv::recoverPose(E, points0, points1, intrinsics_matrix, init_r_mat, init_t_vec, inlier_mask_E); // compute translation and rotation
 
-  cv::Mat rotation_vector;
-  //cv::Rodrigues(rotation, rotation_vector);
-
-  //if (rotation_vector.at<uchar>(2) < rotation_vector.at<uchar>(0) || rotation_vector.at<uchar>(2) < rotation_vector.at<uchar>(1)) {
-  if ((cv::abs(init_t_vec.at<double>(0)) <cv::abs(init_t_vec.at<double>(2)))){
+  // if the transformation is given by a forward motion, return false, i.e. if the x or y coordinate of the translation vector is greater than the z coordinates
+  if ((cv::abs(init_t_vec.at<double>(0)) < cv::abs(init_t_vec.at<double>(2)) /*|| (cv::abs(init_t_vec.at<double>(1))) < cv::abs(init_t_vec.at<double>(2))*/)){
     return false;
   }
   
- 
 
   /*
    NOTES: 
@@ -967,6 +961,7 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
       }
     }
   
+    // consider how a point is changed between this iteration and the previous one considering if the euclidean distance between the two points is greater than a given threshold
     for (int k = num_cam_poses_*6; k < parameters_.size(); k+=3) {
       //cout << prev_parameters[k] << " " << parameters_[k] << endl;
       double x1=prev_parameters[k],x2=parameters_[k];
@@ -980,7 +975,9 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     }
 
     //if (count_cam > num_cam_poses_*3 || count_point > ((parameters_.size()-num_cam_poses_*6))/2) {
-    if (count_cam > num_cam_poses_*3 || count_point > num_points_/2) {
+    // if the number of camera parameters or the number of points that have changed too much between one iteration and the other are more
+    // than half, the algorithm is diverging so it returns false
+    if (count_cam > num_cam_poses_*3 || count_point > num_points_/2) { 
         std::cout << "Divergence. Restarting\n" << std::endl;
         return false;
     }
