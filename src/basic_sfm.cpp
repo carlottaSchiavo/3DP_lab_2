@@ -712,13 +712,40 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   // First bundle adjustment iteration: here we have only two camera poses, i.e., the seed pair
   bundleAdjustmentIter(new_cam_pose_idx );
 
+  cv::Point3d prevMinPoint,prevMaxPoint;//These are use for the divergence check
   // Start to register new poses and observations...
   for(int iter = 1; iter < num_cam_poses_ - 1; iter++ )
   {
+    prev_parameters.clear();
     //let's save the old value of parameters. This is done in order to check the divergence.
     for (int i = 0; i < parameters_.size(); i++) {
       prev_parameters.push_back(parameters_[i]);
     }
+   
+    //computation of the first BB diagonal extremes
+    int k = num_cam_poses_*6;
+    prevMinPoint={DBL_MAX,DBL_MAX,DBL_MAX};
+    prevMaxPoint={DBL_MIN,DBL_MIN,DBL_MIN};
+    
+    for (; k < prev_parameters.size(); k+=3) {
+       cv::Point3d temp={prev_parameters[k],prev_parameters[k+1],prev_parameters[k+2]};
+       //cout<<"POINT:" <<temp<<endl;
+      if((temp.x!=-INFINITY && temp.x!=INFINITY) && 
+          (temp.y!=-INFINITY && temp.y!=INFINITY) &&
+            (temp.z!=-INFINITY && temp.z!=INFINITY)){
+        if(temp.x<=prevMinPoint.x && temp.y<=prevMinPoint.y && temp.z<=prevMinPoint.z){
+            prevMinPoint=temp;
+        }
+        if(temp.x>=prevMaxPoint.x && temp.y>=prevMaxPoint.y && temp.z>=prevMaxPoint.z){
+            prevMaxPoint=temp;
+        }
+      }
+    }
+
+
+
+
+
     // The vector n_init_pts stores the number of points already being optimized
     // that are projected in a new camera pose when is optimized for the first time
     std::vector<int> n_init_pts(num_cam_poses_, 0);
@@ -851,7 +878,8 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
             cv::triangulatePoints(proj_mat0, proj_mat1, points0, points1, hpoints4D);
 
             //check the cheirality constraint  
-            if(checkCheiralityConstraint(cam_idx,pt_idx) && checkCheiralityConstraint(new_cam_pose_idx,pt_idx)){
+            //if(checkCheiralityConstraint(cam_idx,pt_idx) && checkCheiralityConstraint(new_cam_pose_idx,pt_idx)){
+            if(hpoints4D.at<double>(2,0)/hpoints4D.at<double>(3,0)>0.0){
               n_new_pts++;
               pts_optim_iter_[pt_idx] = 1;
               double *pt = pointBlockPtr(pt_idx);
@@ -927,12 +955,12 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     //  if( <bad reconstruction> )
     //    return false;
 
-
-    double threshold = 0.5;
+  
+    //METODO 1
+    
+    /*double threshold = 0.5;
     int count_cam = 0, 
     count_point = 0;
-  
-
     for (int k = 0; k < num_cam_poses_*6; k++) {
       if (std::abs(prev_parameters[k] - parameters_[k]) > threshold) {
         count_cam++;
@@ -956,10 +984,67 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
         std::cout << "Divergence. Restarting\n" << std::endl;
         return false;
     }
-  
+
     prev_parameters.clear();
     for (int i = 0; i < parameters_.size(); i++) {
       prev_parameters.push_back(parameters_[i]);
+    }
+  
+*/
+ //METODO 2 bounding box:
+
+    k = num_cam_poses_*6;
+    cv::Point3d minPoint={DBL_MAX,DBL_MAX,DBL_MAX};
+    cv::Point3d maxPoint={DBL_MIN,DBL_MIN,DBL_MIN};
+    
+    for (; k < parameters_.size(); k+=3) {
+      cv::Point3d temp={parameters_[k],parameters_[k+1],parameters_[k+2]};
+      if((temp.x!=-INFINITY && temp.x!=INFINITY) && 
+          (temp.y!=-INFINITY && temp.y!=INFINITY) &&
+            (temp.z!=-INFINITY && temp.z!=INFINITY))
+      {
+        if(temp.x<=minPoint.x && temp.y<=minPoint.y && temp.z<=minPoint.z){
+            minPoint=temp;
+        }
+        if(temp.x>=maxPoint.x && temp.y>=maxPoint.y && temp.z>=maxPoint.z){
+            maxPoint=temp;
+        }
+      }
+    }
+
+    cout<<"prevMinPoint:" <<prevMinPoint<<endl;
+    cout<<"prevMaxPoint:" <<prevMaxPoint<<endl;
+    cout<<"minPoint:" <<minPoint<<endl;
+    cout<<"maxPoint:" <<maxPoint<<endl;
+
+    //prev diagonal
+    double x1=prevMinPoint.x,x2=prevMaxPoint.x;
+    double y1=prevMinPoint.y,y2=prevMaxPoint.y;
+    double z1=prevMinPoint.z,z2=prevMaxPoint.z;
+    double prev_diagonal=sqrt(pow(x1-x2,2.0)+pow(y1-y2,2.0)+pow(z1-z2,2.0));
+
+    //curr_diagonal 
+    x1=minPoint.x;
+    x2=maxPoint.x;
+    y1=minPoint.y;
+    y2=maxPoint.y;
+    z1=minPoint.z;
+    z2=maxPoint.z;
+    double curr_diagonal=sqrt(pow(x1-x2,2.0)+pow(y1-y2,2.0)+pow(z1-z2,2.0));
+
+    cout<<"prev_diagonal: "<<prev_diagonal<<endl;
+    cout<<"curr_diagonal: "<<curr_diagonal<<endl;
+    
+    double threshold=prev_diagonal*0.5;
+    if(prev_diagonal==INFINITY || curr_diagonal==INFINITY){
+      std::cout << "Divergence. Restarting\n" << std::endl;
+      return false;
+    }
+
+    
+    if(curr_diagonal-prev_diagonal>threshold){
+      std::cout << "Divergence. Restarting\n" << std::endl;
+      return false;
     }
     
     /////////////////////////////////////////////////////////////////////////////////////////
