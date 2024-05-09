@@ -57,6 +57,7 @@ void FeatureMatcher::extractFeatures()
     //converition of the image into grayscale
     cv::Mat imgDest;
     cv::cvtColor(img,imgDest,cv::COLOR_BGR2GRAY);
+    
     cv::Ptr<cv::xfeatures2d::SURF> detector= cv::xfeatures2d::SURF::create(minHessian);
     detector-> detectAndCompute(imgDest,cv::noArray(),features_[i],descriptors_[i]);
 
