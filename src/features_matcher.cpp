@@ -2,18 +2,9 @@
 #include <iostream>
 #include <map>
 
-
-//#include <opencv2/core/core.hpp>
-//#include <opencv2/core/types.hpp>
-//#include <opencv2/highgui/highgui.hpp>
+// For SURF:
 #include "opencv2/xfeatures2d.hpp"
 #include "opencv2/xfeatures2d/nonfree.hpp"
-//#include "opencv2/calib3d/calib3d.hpp"
-//#include <chrono>
-//#include <opencv2/features2d.hpp>
-
-
-
 
 
 FeatureMatcher::FeatureMatcher(cv::Mat intrinsics_matrix, cv::Mat dist_coeffs, double focal_scale)
@@ -78,8 +69,6 @@ void FeatureMatcher::extractFeatures()
       feats_colors_[i].push_back(img.at<cv::Vec3b>(features_[i][j].pt));
     }
     
-
-    
     /////////////////////////////////////////////////////////////////////////////////////////
   }
   
@@ -119,10 +108,7 @@ void FeatureMatcher::exhaustiveMatching()
       //For ORB:
       cv::Ptr<cv::BFMatcher> matcher= cv::BFMatcher::create(cv::NORM_HAMMING, false);
 
-     
-
       matcher->match(descriptors_[i],descriptors_[j],matches);
-
       
       //computation of H and E models
       std::vector<cv::Point2f> points_img1;
@@ -133,7 +119,6 @@ void FeatureMatcher::exhaustiveMatching()
         points_img1.push_back( features_[i][matches[k].queryIdx].pt );
         points_img2.push_back( features_[j][matches[k].trainIdx].pt );
       }
-
 
       cv::Mat isOutlierMask_H,isOutlierMask_E;
       std::vector<cv::DMatch> inlier_matches_H,inlier_matches_E;
