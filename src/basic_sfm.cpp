@@ -582,21 +582,8 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   if ((cv::abs(init_t_vec.at<double>(0)) < cv::abs(init_t_vec.at<double>(2)) /*|| (cv::abs(init_t_vec.at<double>(1))) < cv::abs(init_t_vec.at<double>(2))*/)){
     return false;
   }
-  
 
-  /*
-   NOTES: 
-   - Use a different threshold (0.001) --> before we use pixels now we are in the continuos domain
-   - Best model must be H --> otherwise return false --> restart from a brand new seed pair (function above)
-   - If H is the best model: 
-     1. recover the rigid body transfomation 
-     2. If :(forward motion = z > (x or y))--> DISCARD seed pair
-        Else: 
-          --> store the rigid body transfomation estimated with recoverPose() inside "init_r_mat and init_t_vec" (Roudrigues function must be useful). 
-          
-    At this point we have accepted till now seed pair --> entry in the cam_pose_optim_iter_ should be such pair images. 
-    
-  */
+
   /////////////////////////////////////////////////////////////////////////////////////////
 
   //It's time to triangulate these points --> get 3D points coordinate of the points that generate the observations.
@@ -635,22 +622,7 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
   init_r_mat.copyTo(proj_mat1(cv::Rect(0, 0, 3, 3)));
   init_t_vec.copyTo(proj_mat1(cv::Rect(3, 0, 1, 3)));
 
-  /*
-  * NOTES:
-  * Given 2 projection matrices that are 3x4 matrices that perfome projective geometry in the homogeneous domain.
-  * (3 columns of the rotMat and 1 column of the traslation)
-  * - First camera --> identity 
-  * - Seconda camera --> init r and init t
-  * then:
-  * - 2 vector of projected points in the 2 images
-  * - result is salved in hpoints4D
-  */
   cv::triangulatePoints(	proj_mat0, proj_mat1, points0, points1, hpoints4D );
-
-  /* NOTES:
-    Now we have to copy the rigid body trasformation we have found before and the 3D points position, inside the HUGE 
-    vector of parameters 
-  */
 
   int r = 0;
   // Initialize the first optimized points
@@ -662,19 +634,8 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     {
       if( inlier_mask_E.at<unsigned char>(r) )
       {
-        
-        /*
-          NOTES:
-          This allow to have a pointer to the correct position of parameters_ structure corresponding the point with index pt_idx
-        */
-
         // Initialize the new point into the optimization
         double *pt = pointBlockPtr(pt_idx);
-
-        /* 
-          NOTES:
-          we copy all the 3D points cooredinated we have estimated into the parameters_ vector in the corresponging position
-        */
 
         // H-normalize the point
         pt[0] = hpoints4D.at<double>(0,r)/hpoints4D.at<double>(3,r);
@@ -718,8 +679,8 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
    
     //computation of the first BB diagonal extremes
     int k = num_cam_poses_*6;
-    prevMinPoint={DBL_MAX,DBL_MAX,DBL_MAX};
-    prevMaxPoint={DBL_MIN,DBL_MIN,DBL_MIN};
+    prevMinPoint={DBL_MAX,DBL_MAX,DBL_MAX}; // the minimum point 
+    prevMaxPoint={DBL_MIN,DBL_MIN,DBL_MIN}; // the maximum point
     
     for (; k < prev_parameters.size(); k+=3) {
        cv::Point3d temp={prev_parameters[k],prev_parameters[k+1],prev_parameters[k+2]};
@@ -735,10 +696,6 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
         }
       }
     }
-
-
-
-
 
     // The vector n_init_pts stores the number of points already being optimized
     // that are projected in a new camera pose when is optimized for the first time
@@ -880,9 +837,7 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
               pt[0] = hpoints4D.at<double>(0,0)/hpoints4D.at<double>(3,0);
               pt[1] = hpoints4D.at<double>(1,0)/hpoints4D.at<double>(3,0);
               pt[2] = hpoints4D.at<double>(2,0)/hpoints4D.at<double>(3,0);
-            }
-           
-            
+            } 
           
             points0.clear();
             points1.clear();
@@ -950,7 +905,7 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     //    return false;
 
   
-    //METODO 1
+    //METHOD 1
     
     /*double threshold = 0.5;
     int count_cam = 0, 
@@ -988,14 +943,15 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     }
   
 */
- //METODO 2 bounding box:
+ //METHOD 2 with bounding box:
 
     k = num_cam_poses_*6;
-    cv::Point3d minPoint={DBL_MAX,DBL_MAX,DBL_MAX};
-    cv::Point3d maxPoint={DBL_MIN,DBL_MIN,DBL_MIN};
+    cv::Point3d minPoint={DBL_MAX,DBL_MAX,DBL_MAX}; // the minimum point
+    cv::Point3d maxPoint={DBL_MIN,DBL_MIN,DBL_MIN}; // the maximum point
     
     for (; k < parameters_.size(); k+=3) {
       cv::Point3d temp={parameters_[k],parameters_[k+1],parameters_[k+2]};
+      // discard infinity values (inf and -inf)
       if((temp.x!=-INFINITY && temp.x!=INFINITY) && 
           (temp.y!=-INFINITY && temp.y!=INFINITY) &&
             (temp.z!=-INFINITY && temp.z!=INFINITY))
@@ -1009,10 +965,10 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
       }
     }
 
-    cout<<"prevMinPoint:" <<prevMinPoint<<endl;
-    cout<<"prevMaxPoint:" <<prevMaxPoint<<endl;
-    cout<<"minPoint:" <<minPoint<<endl;
-    cout<<"maxPoint:" <<maxPoint<<endl;
+    //cout<<"prevMinPoint:" <<prevMinPoint<<endl;
+    //cout<<"prevMaxPoint:" <<prevMaxPoint<<endl;
+    //cout<<"minPoint:" <<minPoint<<endl;
+    //cout<<"maxPoint:" <<maxPoint<<endl;
 
     //prev diagonal
     double x1=prevMinPoint.x,x2=prevMaxPoint.x;
@@ -1033,12 +989,13 @@ bool BasicSfM::incrementalReconstruction( int seed_pair_idx0, int seed_pair_idx1
     cout<<"curr_diagonal: "<<curr_diagonal<<endl;
     
     double threshold=prev_diagonal*0.5;
+    // if one of the two diagonals is infinity, the algorithm is diverging
     if(prev_diagonal==INFINITY || curr_diagonal==INFINITY){
       std::cout << "Divergence. Restarting\n" << std::endl;
       return false;
     }
 
-    
+    // if the diagonal is changed a lot between this iteration and the previous one, the algorithm is diverging
     if(curr_diagonal-prev_diagonal>threshold){
       std::cout << "Divergence. Restarting\n" << std::endl;
       return false;
@@ -1099,8 +1056,7 @@ void BasicSfM::bundleAdjustmentIter( int new_cam_idx )
         // while the point position blocks have size (point_block_size_) of 3 elements.
         //////////////////////////////////////////////////////////////////////////////////
 
-
-        // Extract camera, point, and observation data
+        // Extract camera and point data
         double *camera = (parameters_.data()) + (cam_pose_index_[i_obs] * camera_block_size_),
               *point = (parameters_.data()) + (num_cam_poses_ * camera_block_size_ + point_index_[i_obs] * point_block_size_);
                       
@@ -1109,9 +1065,6 @@ void BasicSfM::bundleAdjustmentIter( int new_cam_idx )
         problem.AddResidualBlock(cost_function,
                            new ceres::CauchyLoss(2*max_reproj_err_),
                            camera,point);
-        
-        
-        
         
         /////////////////////////////////////////////////////////////////////////////////////////
 
